@@ -1,52 +1,69 @@
-from flask import Flask, render_template, request
-import requests
-import smtplib
-import os
-from dotenv import load_dotenv
+from flask import Flask, render_template, redirect, url_for
+from flask_bootstrap import Bootstrap
+from flask_sqlalchemy import SQLAlchemy
+from flask_wtf import FlaskForm
+from wtforms import StringField, SubmitField
+from wtforms.validators import DataRequired, URL
+from flask_ckeditor import CKEditor, CKEditorField
 
-load_dotenv()
-EMAIL = os.environ.get('EMAIL')
-PASSWORD = os.environ.get('PASSWORD')
-all_posts = requests.get('https://api.npoint.io/e804a12b698002b4dc64').json()
+
+## Delete this code:
+# import requests
+# posts = requests.get("https://api.npoint.io/43644ec4f0013682fc0d").json()
+
 app = Flask(__name__)
+app.config['SECRET_KEY'] = '8BYkEfBA6O6donzWlSihBXox7C0sKR6b'
+ckeditor = CKEditor(app)
+Bootstrap(app)
+
+##CONNECT TO DB
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///posts.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+
+##CONFIGURE TABLE
+class BlogPost(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(250), unique=True, nullable=False)
+    subtitle = db.Column(db.String(250), nullable=False)
+    date = db.Column(db.String(250), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    author = db.Column(db.String(250), nullable=False)
+    img_url = db.Column(db.String(250), nullable=False)
+
+
+##WTForm
+class CreatePostForm(FlaskForm):
+    title = StringField("Blog Post Title", validators=[DataRequired()])
+    subtitle = StringField("Subtitle", validators=[DataRequired()])
+    author = StringField("Your Name", validators=[DataRequired()])
+    img_url = StringField("Blog Image URL", validators=[DataRequired(), URL()])
+    body = StringField("Blog Content", validators=[DataRequired()])
+    submit = SubmitField("Submit Post")
 
 
 @app.route('/')
-def get_home_page():
-    return render_template('index.html', posts = all_posts)
+def get_all_posts():
+    return render_template("index.html", all_posts=posts)
 
 
-@app.route('/about')
-def about_page():
-    return render_template('about.html')
+@app.route("/post/<int:index>")
+def show_post(index):
+    requested_post = None
+    for blog_post in posts:
+        if blog_post["id"] == index:
+            requested_post = blog_post
+    return render_template("post.html", post=requested_post)
 
 
-@app.route('/contact', methods = ['GET', 'POST'])
-def contact_page():
-    if request.method == 'GET':
-        return render_template('contact.html')
-    if request.method == 'POST':
-        name = request.form['name']
-        email = request.form['email']
-        phone = request.form['phone']
-        message = request.form['message']
-        print(name, email, phone, message)
-        with smtplib.SMTP('smtp.gmail.com',587) as connection:
-            connection.starttls()
-            connection.login(EMAIL, PASSWORD)
-            connection.sendmail(
-                from_addr=EMAIL, 
-                to_addrs='jvdpt0@gmail.com',
-                msg= f'Subject: New Form Submit! \n\nName: {name}\nEmail: {email}\nPhone: {phone}\nMessage: {message}'.encode('utf-8')
-                )
-            return "<h1>Succesfully sent your message</h1>"
-        
+@app.route("/about")
+def about():
+    return render_template("about.html")
 
 
-@app.route('/post/<int:id>')
-def get_post(id):
-    return render_template('post.html', id=id, posts = all_posts)
+@app.route("/contact")
+def contact():
+    return render_template("contact.html")
 
-
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=5000)
